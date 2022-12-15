@@ -1,0 +1,535 @@
+---
+title: "Pairs_Trading"
+author: "Isabel Arvelo"
+date: "2/22/2022"
+output: html_document
+---
+
+
+```{r, include = FALSE}
+trial_pair <- downloadStockPairDF("V", "MA", start = 2010, nyears = 10)
+```
+
+**Deliverable 1**
+
+```{r, echo = FALSE}
+plotStocks(trial_pair)
+cor(trial_pair$stock1, trial_pair$stock2)
+plotRatio(trial_pair, k = 1)
+```
+
+I downloaded data on the stock price of two publicly traded American multinational financial services corporations: Visa ("V") and Mastercard ("MA"). 
+
+These stocks represent the financial sector of the market, made up of firms and institutions that provide financial services to commercial and retail customers. I looked at prices of both stocks between the years 2010 and 2020 and found that Mastercard has historically generally traded at higher prices, but the prices of both stocks consistently move together, with a correlation of 0.99. 
+
+
+**Deliverable 2**
+
+```{r, echo = FALSE}
+ratio <- trial_pair$ratio
+
+m <- mean(ratio)
+s <- sd(ratio)
+
+positions <- findPositions(ratio, m, s)  
+
+plotRatio(trial_pair, k = 1)    
+addPositions(ratio, positions)
+```
+
+Between the years of 2010 and 2020, using a pairs trading strategy with k = 1, we would have opened and closed six positions. The green points indicate each day where we would open a position and the red points indicate the day that each position is closed. 
+
+
+
+**Deliverable 3**
+
+Assuming all investments are always $1 and a constant fixed fee of 0.3% on all buying/selling transactions, we can find the shares we sold of stock1, and bought of stock2, and then can calculate the costs/profits when we close these positions. We open the first positions on day 2 and close them on day 242. 
+
+For the first positions, the price of stock 1 is relatively high. Therefore, we’ll sell (short) 1 dollar of stock1 because we expect the price to decrease. We will buy $1 of stock2 because the price is relatively cheap and we expect it to increase in the future. 
+
+
+On day 2, stock1 has a price of 19.98 and stock2 has a price of 24.07. 
+
+```{r, echo = FALSE}
+shares1 <- 1/trial_pair$stock1[2]    #
+shares2 <- 1/trial_pair$stock2[2]   
+
+paste("We sell (short)", round(shares1, 3), "shares of stock `1." , sep = " ")
+paste("We buy", round(shares2,3), "shares of stock 2." , sep = " ")
+
+```
+
+On day 242, stock1's price is 15.51 and stock2's price is 21.06. 
+
+```{r}
+closeDay <- positions[[1]][[2]]
+
+profit1 <- -1 * shares1 * trial_pair$stock1[closeDay]
+paste("We need to pay", round(profit1,3), "to purchase stock 1 at the closing day price." , sep = " ")
+
+
+profit2 <- shares2 * trial_pair$stock2[closeDay]  
+paste("We can sell our shares of stock 2 for", round(profit2,3) , sep = " ")
+
+```
+
+```{r}
+fees <- 0.003 * (1 + 1 + abs(profit1) + abs(profit2))
+
+paste("Fees for this transaction amount to be", round(fees, 3), sep = " ")
+
+paste("After opening/closing the first pair position, the net profit was", round (profit1 + profit2 - fees, 3), "%", sep = " ")
+```
+
+The positionProfit function agrees that profit from the first set of positions is 0.088. 
+```{r}
+positionProfit(trial_pair, positions, net = FALSE)[1]
+```
+
+```{r}
+positionProfit(trial_pair, positions, net = TRUE)
+```
+
+The net profit from the trading strategy is 42.789%. 
+
+**Deliverable 4**
+
+```{r, echo = FALSE}
+optimalK <- findOptimalK(trial_pair, plot = TRUE)
+```
+The optimal value of k for pairs trading the stocks Visa and Mastercard between 2010 and 2020 is 1.78815, as indicated by the red point in the graph. 
+
+
+```{r, include=FALSE}
+ratio <- trial_pair$ratio
+m <- mean(ratio)
+s <- sd(ratio)
+positions <- findPositions(ratio, m, s, k = optimalK)
+positionProfit(trial_pair, positions, net = TRUE)
+```
+
+The profit achieved by the optimal K (k = 1.78815) is 0.605%. The chart below displays the price ratio, with opening/closing positions shown using this optimal value of k
+
+```{r, echo = FALSE}
+plotRatio(trial_pair, k = optimalK)
+addPositions(ratio, positions)
+```
+
+
+**Deliverable 5**
+
+*Positively correlated stocks* 
+
+The stock prices for United Airlines and Delta have a high positive correlation of 0.96. Given that they are both major U.S. airlines, it makes sense that their stock prices move together. 
+
+```{r, echo=FALSE}
+pos_cor <- downloadStockPairDF("UAL", "DAL", start = 2010, nyears = 10)
+cor(pos_cor$stock1, pos_cor$stock2)
+plotStocks(pos_cor)
+```
+
+```{r, echo=FALSE}
+optimalK <- findOptimalK(pos_cor, plot = FALSE)
+```
+
+```{r}
+evaluatePairsTrading(pos_cor, trainingFrac = 0.5, plot = TRUE)
+```
+
+Implementing the pairs trading strategy with these positively correlated stocks, results in a positive return of 0.4165913%. 
+
+*Negatively correlated stocks* 
+
+```{r, include=FALSE}
+neg_cor <- downloadStockPairDF("AAPL", "GOLD", start = 2010, nyears = 10)
+cor(neg_cor$stock1, neg_cor$stock2)
+
+optimalK <- findOptimalK(neg_cor)
+
+```
+
+The stock prices for Apple and Barrick Gold Corporation have a negative correlation of -0.64. Apple tends to correlated with the stock market, while the price of gold stocks tend to move inversely with the stock market so it makes sense that the stock prices of these two companies are negatively correlated. 
+
+```{r}
+plotStocks(neg_cor)
+
+evaluatePairsTrading(neg_cor, trainingFrac = 0.5, plot = TRUE)
+```
+
+Implementing the pairs trading strategy with these negatively correlated stocks, results in a negative return of 122.03%. This illustrates that that employing this strategy on negatively correlated stocks can lead to major losses for investors. 
+
+
+*Uncorrelated stocks*
+
+The stock prices for Tyson and Macy's are not correlated, with a correlation of -0.0405. Tyson is a food company and Macy's is an American chain of department stores, so they represent two different sectors of the market that react independently to market conditions.
+
+```{r}
+no_cor <- downloadStockPairDF("TSN", "M", start = 2010, nyears = 10)
+cor(no_cor$stock1, no_cor$stock2)
+
+optimalK <- findOptimalK(no_cor, plot = TRUE)
+```
+
+```{r}
+plotStocks(no_cor)
+
+evaluatePairsTrading(no_cor, trainingFrac = 0.5, plot = TRUE)
+```
+
+ Implementing the pairs trading strategy with these uncorrelated stocks, results in a negative return of -171.77%. Out of the three pairs of stocks evaluated, investors would have incurred the biggest loss by employing the pairs trading strategy on these two uncorrelated stocks. 
+
+
+**Deliverable 6**
+
+```{r, include = FALSE}
+trial_1<- simulateDistribution(n=1000, rho = 0.9, psi = 0.9, sigma1 = 1, sigma2 = 1)
+mean(trial_1)
+               
+trial_2 <- simulateDistribution(n=1000, rho = 0.9, psi = 0.9, sigma1 = 1, sigma2 = 1, returnCorrelation = TRUE)
+mean(trial_2)
+```
+
+```{r, include = FALSE}
+quantile(trial_1, c(0.025, 0.975))
+quantile(trial_2, c(0.025, 0.975))
+
+sd(trial_1)/sqrt(length(trial_1))
+sd(trial_2)/sqrt(length(trial_2))
+```
+
+For a pair of stocks with the following VAR process parameters:
+
+n=1000 observations in each simulated stock price time series
+No temporal trends
+σ1=σ2=1
+ρ=ψ=0.9
+
+The mean profit realized was about 455% with a standard error of 0.001279. We are 95% confident that the true mean profit realized is between 208.27% and 691.55%. 
+
+The mean correlation realized was about 0.8897 with a standard error of .0000387. We are 95% confident that the true mean correlation is between 0.8017 0.9454. 
+
+
+**Deliverable 7** 
+
+```{r}
+rho_list <- seq(0, 1, by = 0.1)
+psi_list <- seq(-1, 1, by = 0.2)
+
+parameters <-  expand.grid(x = rho_list, y = psi_list)
+parameters_2 <- expand.grid(x = rho_list, y = psi_list)
+```
+
+
+
+```{r}
+correlations = list()
+for (i in 1:nrow(parameters)){
+  correlations[i] <- mean(simulateDistribution(n=1000, rho = parameters$x[i], psi = parameters$y[i], returnCorrelation = TRUE))
+}
+```
+
+
+```{r}
+parameters$corr <- unlist(correlations)
+```
+
+
+```{r}
+library(ggplot2)
+ggplot(parameters, aes(x = x, y = y, fill = corr)) +
+    geom_tile() +
+        scale_fill_gradient2(low = "red", mid = "white", high = "blue") + 
+  labs(y= "psi", x = "rho") + ggtitle("Median Correlation for Simulated Stock Prices")
+  
+```
+
+
+
+
+**Deliverable 8**
+
+```{r}
+medians = list()
+for (i in 1:nrow(parameters_2)){
+  medians[i] <- median(simulateDistribution(n=1000, rho = parameters_2$x[i], 
+                                               psi = parameters_2$y[i]))
+}
+```
+
+
+```{r}
+parameters_2$med <- unlist(medians)
+```
+
+
+```{r}
+ggplot(parameters_2, aes(x = x, y = y, fill = med)) +
+    geom_tile() +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(100)) +
+  labs(y= "psi", x = "rho")
+      #  scale_fill_gradientn(colours = colorspace::diverge_hcl(100))
+# scale_fill_gradient2(low = "red", mid = "white", high = "blue")
+```
+```{r}
+max(parameters_2)
+```
+
+```{r}
+remove_outlier <- subset(parameters_2, med < 100)
+```
+
+```{r}
+ggplot(remove_outlier, aes(x = x, y = y, fill = med)) +
+    geom_tile() +
+  scale_fill_gradientn(colours = colorspace::diverge_hcl(100))+
+  labs(y= "psi", x = "rho") + ggtitle("Median Profit for Simulated Stock Prices")
+```
+
+**Deliverable 9**
+```{r}
+meds <- list()
+
+sigma1_list <- seq(0, 10, by = 1)
+sigma2_list <- seq(0, 10, by = 1)
+
+params <-  expand.grid(x = sigma1_list, y = sigma2_list)
+
+for (i in 1:nrow(params)){
+  meds[i] <- median(simulateDistribution(n=1000, rho = 0.9, psi = 0.9, sigma1 = params$x[i],
+                                            sigma2 = params$y[i], returnCorrelation = FALSE))
+}
+
+
+```
+
+
+```{r}
+params$median <- unlist(meds)
+```
+
+```{r}
+ggplot(params, aes(x = x, y = y, fill = median)) +
+    geom_tile() +
+        scale_fill_gradient2(low = "red", mid = "white", high = "blue")+ 
+  labs(y= "sigma 2", x = "sigma 1") +  ggtitle("Median Profit for Simulated Stock Prices( ρ = ψ = .9)")
+```
+
+
+**Deliverable 10**
+
+$\rho$, the (first order) within-stock correlation does not appear to materially affect the profits from pair trading, once it takes on any value greater than 0. However, profits do tend to be slightly higher for pairs with $\rho$ values closer to 1.  More importantly,  $\psi$, the (first order) between-stock correlation, increases from -1 to 1, the profits from pairs trading distinctly tend to increase. The intercept for each stock price is trivial. 
+
+When considering the standard deviation of each stock, we are assuming $\psi$ and $\rho$ are constant. The highest profits occur when stock1 has a very high standard deviation and stock2 has a standard deviation close to 0. Holding $\sigma1$ constant, profits tend to decrease as $\sigma2$ increases. Holding $\sigma2$ constant, the profits actually tend to increase as $\sigma1$ increases. 
+
+
+a1,a2: the intercept for each stock price
+b1,b2: the linear trend for each stock
+σ1,σ2: the standard deviation of each stock
+ 
+
+
+
+## Extensions 
+
+*Extension 1*
+
+I modified downloadStockPairDF() function to be robust against date ranges that don’t exactly match. For example. Between 2010 and 2020, the HCA Healthcaee stock only has data between January 2011 and December 2019, but the Community Health Systems stock has data available from January 2010 to Demcember 2019. 
+Even though the stocks have different date ranges between 2010 and 2020,  we are still able to download all of the available data and evaluate a pairs trading strategy for the years that both stocks have data.
+
+When there is not data available for both stocks for the full range requested, we receive a message that the original date ranges are different. If one stock is missing data for those years, we receive a warning message that there is no available data for that stock in the requested date range. 
+
+
+```{r}
+mismatch_dates <- downloadStockPairDF("HCA", "CYH", start = 2010, nyears = 10)
+cor(mismatch_dates$stock1, mismatch_dates$stock2)
+
+
+evaluatePairsTrading(mismatch_dates, trainingFrac = 0.5, plot = TRUE)
+```
+
+
+
+*Extension 2*
+
+For this extension, I drew data from 30 pairs of positively correalated stocks across the 11 major sectors of the stock market: healthcare, materials, real estate, consumer staples, consumer discretionary, utilities, energy, industrials, communication services, financials, and information technology. I trained the data on the price ratio movements between 2010 and 2015 and then observed the pairs trading strategy on each pair of stocks between 2015 and 2020 to see if there were any periods of time in which a lot of positions were opened and/or closed. I wanted to relate the work in the project to a real world application and investigate what types of current events could have been impact the success or failure of a pairs trading strategy. 
+
+```{r}
+openDays <- c()
+closeDays <- c()
+
+#healthcare
+healthcare_1 <- downloadStockPairDF("PFE", "JNJ", start = 2010, nyears = 10)
+healthcare_2 <- downloadStockPairDF("UNH", "HUM", start = 2010, nyears = 10)
+healthcare_3 <- downloadStockPairDF("AFL", "CI", start = 2010, nyears = 10)
+
+healthcare_1_df <- dfToDays(healthcare_1)
+healthcare_2_df <- dfToDays(healthcare_2)
+healthcare_3_df <- dfToDays(healthcare_3)
+
+#materials
+materials_1 <- downloadStockPairDF("ECL", "APD", start = 2010, nyears = 10)
+materials_2 <- downloadStockPairDF("APD", "DD", start = 2010, nyears = 10)
+
+materials_1_df <- dfToDays(materials_1)
+materials_2_df <- dfToDays(materials_2)
+
+#real estate
+re_1 <- downloadStockPairDF("O", "ARE", start = 2010, nyears = 10)
+re_2 <- downloadStockPairDF("SPG", "DRE", start = 2010, nyears = 10)
+re_3 <- downloadStockPairDF("ARE", "SUI", start = 2010, nyears = 10)
+
+re_1_df <- dfToDays(re_1)
+re_2_df <- dfToDays(re_2)
+re_3_df <- dfToDays(re_3)
+
+
+#consumer staples 
+cs_1 <- downloadStockPairDF("PEP", "COKE", start = 2010, nyears = 10)
+cs_2 <- downloadStockPairDF("PG", "UL", start = 2010, nyears = 10)
+cs_3 <- downloadStockPairDF("COST", "WMT", start = 2010, nyears = 10)
+
+cs_1_df <- dfToDays(cs_1)
+cs_2_df <- dfToDays(cs_2)
+cs_3_df <- dfToDays(cs_3)
+
+#consumer discretionary
+cd_1 <- downloadStockPairDF("MCD", "SBUX", start = 2010, nyears = 10)
+cd_2 <- downloadStockPairDF("M", "JWN", start = 2010, nyears = 10)
+cd_3 <- downloadStockPairDF("H", "MAR", start = 2010, nyears = 10)
+cd_4 <- downloadStockPairDF("NKE", "ADDYY", start = 2010, nyears = 10)
+
+cd_1_df <- dfToDays(cd_1)
+cd_2_df <- dfToDays(cd_2)
+cd_3_df <- dfToDays(cd_3)
+cd_4_df <- dfToDays(cd_4)
+
+
+#utilities
+util_1 <- downloadStockPairDF("ED", "DUK", start = 2010, nyears = 10)
+util_2 <- downloadStockPairDF("NRG", "CNP", start = 2010, nyears = 10)
+
+util_1_df <- dfToDays(util_1)
+util_2_df <- dfToDays(util_2)
+
+#energy
+energy_1 <- downloadStockPairDF("RYDAF", "CVX", start = 2010, nyears = 10)
+energy_2 <- downloadStockPairDF("PXD", "EOG", start = 2010, nyears = 10)
+energy_3 <- downloadStockPairDF("XOM","CVX", start = 2010, nyears = 10)
+
+energy_1_df <- dfToDays(energy_1)
+energy_2_df <- dfToDays(energy_2)
+energy_3_df <- dfToDays(energy_2)
+
+#industrials
+indus_1 <- downloadStockPairDF("RTX", "HON", start = 2010, nyears = 10)
+indus_2 <- downloadStockPairDF("LMT", "GD", start = 2010, nyears = 10)
+
+indus_1_df <- dfToDays(indus_1)
+indus_2_df <- dfToDays(indus_2)
+
+#communication services 
+com_serv_1 <- downloadStockPairDF("VZ","T", start = 2010, nyears = 10)
+com_serv_2 <- downloadStockPairDF("NFLX","DIS", start = 2010, nyears = 10)
+com_serv_3 <- downloadStockPairDF("NXST","TGNA", start = 2010, nyears = 10)
+
+com_serv_1_df <- dfToDays(com_serv_1)
+com_serv_2_df<- dfToDays(com_serv_2)
+com_serv_3_df <- dfToDays(com_serv_3)
+
+
+#financials 
+fin_1 <- downloadStockPairDF("MA", "V", start = 2010, nyears = 10)
+fin_2 <- downloadStockPairDF("JPM", "MS", start = 2010, nyears = 10)
+fin_3 <- downloadStockPairDF("BAC", "C", start = 2010, nyears = 10)
+
+fin_1_df <- dfToDays(fin_1)
+fin_2_df <- dfToDays(fin_2)
+fin_3_df <- dfToDays(fin_3)
+
+
+#information technology
+tech_1 <- downloadStockPairDF("ACN", "ORCL", start = 2010, nyears = 10)
+tech_2 <- downloadStockPairDF("AAPL", "MSFT", start = 2010, nyears = 10)
+
+tech_1_df <- dfToDays(tech_1)
+tech_2_df <- dfToDays(tech_2)
+
+openDays <- append(openDays, c(healthcare_1_df$Open, healthcare_2_df$Open,
+                               healthcare_3_df$Open, 
+                               materials_1_df$Open, materials_2_df$Open,
+                               re_1_df$Open, re_2_df$Open, re_3_df$Open,
+                               indus_1_df$Open, indus_2_df$Open,
+                               energy_1_df$Open, energy_2_df$Open, energy_3_df$Open, 
+                               cs_1_df$Open, cs_2_df$Open, cs_3_df$Open, 
+                               cd_1_df$Open, cd_2_df$Open,cd_3_df$Open, cd_4_df$Open,
+                               util_1_df$Open,util_2_df$Open, com_serv_1_df$Open,
+                               com_serv_2_df$Open, com_serv_3_df$Open, fin_1_df$Open,
+                               fin_2_df$Open,  fin_3_df$Open, tech_1_df$Open,
+                               tech_2_df$Open
+                               ))
+
+closeDays <- append(closeDays, c(healthcare_1_df$Close, healthcare_2_df$Close,
+                                 healthcare_3_df$Close, materials_1_df$Close,
+                                 materials_2_df$Close, re_1_df$Close, re_2_df$Close,
+                                 re_3_df$Close, indus_1_df$Close, indus_2_df$Close,
+                                 energy_1_df$Close,
+                                 energy_2_df$Close, energy_3_df$Close, cs_1_df$Close,
+                                 cs_2_df$Close,
+                                 cs_3_df$Close,
+                                 cd_1_df$Close, cd_2_df$Close, cd_3_df$Close,
+                                 cd_4_df$Close, util_1_df$Close,
+                                 util_2_df$Close, com_serv_1_df$Close,
+                                 com_serv_2_df$Close, com_serv_3_df$Close,
+                                 fin_1_df$Close,
+                                 fin_2_df$Close,fin_3_df$Close, tech_1_df$Close,
+                                 tech_2_df$Close ))
+
+
+test1 <- downloadPriceDF("AFL", 2010, 10)
+decadedates <- test1$date
+
+testLength = length(openDays)
+OpenDates <- c()
+for (i in 1:testLength) {
+  OpenDates <- append(OpenDates, decadedates[openDays[i] + 1258])
+}
+
+CloseDates <- c()
+for (i in 1:testLength) {
+  CloseDates <- append(CloseDates, decadedates[closeDays[i] + 1258])
+}
+```
+
+
+```{r}
+hist(as.Date(OpenDates), breaks = "months", format = "%m-%y", cex.axis = .5, xlab = "Dates", main = "Histogram of Days Positioned are Opened")
+```
+There are several periods worth investigating further between 2015 and 2020 where market conditions appear to be conducive to opening positions on a pairs trading strategy. Interestingly, the period observed was the first decade since 1850 that the U.S. did not experience a recession. (https://fortune.com/2019/12/17/investing-decade-in-review-s-p-500-tech-fed-interest-rates/) 
+
+In the first month of 2015, a lot of positions are opened, which makes sense since positions are opened and closed based on the mean, standard deviation, and k value for the 2010-2015 training data, but secular and/or cyclical trends could cause price ratios in the beginning of 2015 to be far from the training mean 5 years prior. Also, in the first week of 2015, the stock market swang up or down (measured by the Dow) by at least 200 points in each of the first 7 days. These major oscillations likely led many stock prices to dramatically increase or decrease, causing the price ratio of the test data to vary significantly from the mean of the training data. 
+
+ 
+It appears that positions were opened in every month of 2015, a year that was full of uncertainity for investors. There was major volatility driven by falling oil prices, China's economic slowdown and ceaseless speculation about when the Federal Reserve would raise interest rates(CNN Business). In a chaotic environment, with many stock prices declining, it is not surprising that the ratio of correlated stocks significantly increased or decreased - presenting the opportunity to open positions on pairs trading strategies. On December 16, 2016, the Fed made the first interest rate hike in almost a decade and we that there were a considerbaly high amount of positions opened that month. 
+
+There also appears to be increased activity in the summer and early fall of 2016 coinciding with the stock market at all-time record highs in July of 2016, perhaps leading to some overvalued stocks that moved price ratios away from their previous mean(https://www.cnbc.com/2016/07/18/us-markets.html) , followed by a selloff in August. The last month in which a large number of positions were opened was in October of 2019, a month that started with a the Dow Jones Industrial plunging more than 800 points, after a report that September 2019 was worst month for U.S. manufacturing in a decade. 
+
+If we look at the distribution of opening positions, we can see that in 3 out of the 5 months of junes observed, there are no positions opened. June is typically a quiet month for the stock market and accoridng to CNBC, on average the S&P 500 has historically ended the month with less than a tenth of a percent move. There were no major stock market selloffs towards the end of the decade, so it makes sense that there weren't as many unexpected price fluctuations that investors could capitalize on with a pairs trading strategy. 
+
+
+
+```{r}
+hist(as.Date(closeDates), breaks = "months", format = "%m-%y", cex.axis = .5, xlab = "Dates", main = "Histogram of Days Positioned are Closed")
+```
+
+There does not appear to be any clear patterns in the days positions are closed. A large number of positions end up being closed at the end of the observation period. This is likely due to to fundamental changes in the stocks that make up each pair that are causing the price ratio between each stock pair to materially change between the decade long period. So, many positions are opened at the beginning of the period and not closed until the end because the relationship between the stocks has changed  between the training and testing periods. In this case, the ratio in the testing data is different than in the training data so it never moves back towards the mean of the training data and the position is not closed until time runs out. 
+
+
+
+
+
+The plot indicates that a lot of positions were opened towards the end of the summer 2015. On August 25, 2015, the Dow (an index of blue chip stocks used to determine overall direction of stock prices), dropped by 1,089 points and ended the trading day with a loss of nearly 600 points. This widespread market panic occurred in response to a burst in Chinese equities and led major U.S. indexes to drop by more 10% or more (commonly referred to as "correction territory"). In a chaotic environment, with many stock prices declining, it is not surprising that the ratio of correlated stocks significantly increased or decreased - presenting the opportunity to open positions on pairs trading strategies.The last period where, relatively speaking, an unusually high amounnt of positions were opened was in March of 2018. It makes sense for many pairs trading positions to open at the end of this month since many stock prices fell sharply, with many indexes reaching their lowest levels in two years. As with all of the analyses above, correlation by no means implies causation, but this last stretch of positions opening occurred as President Donald Trump announced import tariffs on China that raised concerns about a potential trade war. 
+The end of 2016, moving into 2017, was a tumultuous time in the United States. The night of the presidential race between Hillary Clinton and Donald Trump, there was a major selloff that lasted about 5 hours in anticipation of the unexpected outcome, followed by a six-week rally fueled by optimism about the new president's business-friendly policies. A major dip followed by a prolonged rally likely set the stage for price fluctuations that caused price ratios to significantly move up or down.
+
+
+
+

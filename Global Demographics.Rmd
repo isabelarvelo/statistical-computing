@@ -1,0 +1,993 @@
+---
+title: "Global Demographics"
+author: "Isabel Arvelo"
+date: '2022-04-05'
+output: html_document
+---
+
+The format of header is called YAML("yiml") - Yes Another Markup Language 
+
+##load XML library
+```{r}
+library("XML")
+```
+
+Day 1 Notes: 
+
+There will always be a root node 
+Within node: attributes, value of node (some amount of text contained between opening and closing of node), nested node
+
+attributes appear in opening of node 
+
+indentation is only to help us visualize 
+
+```{r}
+xmlText <- '<?xml version="1.0"?> <a> <b>text of b <sub>sub node 1</sub> AAA <sub id="s2">sub node 2</sub> BBB <sub id="s3">sub node 3</sub> CCC </b> <c>text of c <d id="d1" name="dnode">text of d</d> <e/> <f name="fnode"/> </c> </a>'
+```
+
+```{r}
+xmlObject <- xmlParse(xmlText)    ## character string xml input
+
+class(xmlObject)
+```
+
+```{r}
+root <- xmlRoot(xmlObject)
+```
+
+##query the root node 
+
+```{r}
+length(root)
+names(root)
+```
+
+Should use..
+```{r}
+xmlSize(root)
+```
+
+```{r}
+children <- xmlChildren(root)
+
+#feels like a list of nested children nodes
+```
+
+```{r}
+length(children)
+names(children)
+```
+
+```{r}
+children
+```
+
+
+```{r}
+children$b
+children[['b']]
+```
+
+```{r}
+xmlChildren(root)[[1]]
+```
+
+```{r}
+xmlChildren(root)[["c"]]
+```
+
+
+```{r}
+bNode <- xmlChildren(root)[["b"]]
+bNode
+```
+
+```{r}
+xmlSize(bNode)
+```
+
+```{r}
+names(bNode)
+```
+
+```{r}
+bNode
+```
+
+```{r}
+xmlChildren(bNode)
+```
+
+
+```{r}
+xmlChildren(bNode)$sub
+```
+
+
+```{r}
+bNode[["text"]]
+```
+
+
+```{r}
+bNode[[3]]
+```
+
+```{r}
+subNode2 <- xmlChildren(bNode)[[4]]
+```
+
+
+```{r}
+xmlAttrs(subNode2)
+```
+
+```{r}
+xmlGetAttr(subNode2, "id")
+```
+
+```{r}
+subNode2Attrs <- xmlAttrs(subNode2)
+class(subNode2Attrs)
+```
+
+#simply returns a character vector 
+```{r}
+subNode2Attrs
+```
+
+
+```{r}
+v <- 1:5
+class(v)
+
+names(v) <- letters[1:5]
+v
+```
+
+named character vector 
+
+```{r}
+subNode2Attrs[['id']]
+```
+
+```{r}
+xmlChildren(root)[["c"]]
+```
+
+
+```{r}
+xmlGetAttr(subNode2, "id")
+```
+
+```{r}
+names(xmlAttrs(subNode2))
+```
+
+
+Search the XML tree using XPath Queries - language used to query XML 
+
+reutrns the set of all nodes that satisfies whatever query 
+
+
+```{r}
+#gives all nodes with name a 
+getNodeSet(root, '//a')
+```
+
+```{r}
+#returns an XML node set - similiar to a list of nodes 
+getNodeSet(root, '//f')
+```
+
+```{r}
+subnodes <- getNodeSet(root, '//sub')
+subnodes
+
+```
+
+
+```{r}
+#all sub nodes within b nodes 
+getNodeSet(root, '//b/sub')
+```
+
+```{r}
+getNodeSet(root, '//a/sub')
+#does not look further within sub nodes 
+```
+
+
+
+Searcing for attributes 
+
+```{r}
+## query: '//sub[@id="s3"]' gets all <sub> nodes with attribute id="s3"
+getNodeSet(root, '//sub[@id="s3"]')
+```
+
+```{r}
+getNodeSet(root, '//f')
+```
+
+```{r}
+getNodeSet(root, '//f[@name="fnode"]')
+```
+
+```{r}
+#mixing and matching different types of quotes 
+getNodeSet(root, '//f[@name="something else"]')
+```
+
+```{r}
+## all 'sub' nodes nested under a 'b' node
+getNodeSet(root, '//b/sub')
+```
+
+```{r}
+## all 'sub' nodes with atrribute 'id=s3' nested under a 'b' node
+getNodeSet(root, '//b/sub[@id="s3"]')
+```
+
+
+
+```{r}
+## all 'sub' nodes which have an 'id' attribute' - no equal sign with value 
+getNodeSet(root, '//sub[@id]')
+```
+
+
+```{r}
+getNodeSet(root, '//@id')
+#not giving us actual nodes back 
+```
+
+```{r}
+library(RCurl)
+
+plantsURL <- "https://www.w3schools.com/xml/plant_catalog.xml"
+
+## download XML text from a URL
+plantXMLtext <- getURL(plantsURL)
+
+class(plantXMLtext)
+```
+
+```{r}
+plantXMLtext
+```
+
+```{r}
+plantXMLobject <- xmlParse(plantXMLtext)
+
+#all nodes that are catalog
+getNodeSet(plantXMLobject, '//CATALOG')  
+```
+
+```{r}
+#list of plant nodes 
+getNodeSet(plantXMLobject, '//PLANT') 
+```
+
+```{r}
+getNodeSet(plantXMLobject, '//PLANT[LIGHT="Sunny"]')
+```
+
+```{r}
+## get the PRICE nodes of all children of PLANT nodes with child LIGHT node with value of Sunny
+getNodeSet(plantXMLobject, '//PLANT[LIGHT="Sunny"]/PRICE')
+```
+
+Only way to get them converted to character strings is XML value -- 
+
+```{r}
+#only takes one query 
+prices <- getNodeSet(plantXMLobject, '//PLANT[LIGHT="Sunny"]/PRICE')
+prices[[1]]
+xmlValue(prices[[1]])
+```
+
+
+```{r}
+lapply(prices, xmlValue)
+```
+
+
+
+```{r}
+t <- xmlChildren(bNode)$text
+class(t)
+```
+
+```{r}
+t
+```
+
+```{r}
+xmlValue(t)
+```
+
+Exercise : Find all PLANT nodes with price less than $8.00
+
+```{r}
+plants <- getNodeSet(plantXMLobject, '//PLANT') 
+prices <- getNodeSet(plantXMLobject, '//PRICE')
+prices_2 <- lapply(prices, xmlValue)
+prices_3 <- lapply(prices_2, function (x) substr(x, 2,5) )
+prices_4 <- lapply(prices_3, as.numeric )
+
+index <- which(prices_4 < 8)
+```
+
+can use XPATH things 
+use R functions because of dollar sign 
+```{r}
+plantsunder8 <- plants[index]
+plantsunder8
+```
+
+
+#any file format that are not plain text for holding things is not useful or convenient 
+
+```{r}
+library(R.utils)
+
+## NOTE: gunzip() deletes the original .xml.gz file
+gunzip('factbook.xml.gz')
+```
+
+
+# make sure countries are character strings and mortality are numeric 
+
+```{r}
+library("tidyverse")
+library("XML")
+```
+
+
+```{r}
+xmlObject <- xmlParse("factbook.xml")    ## character string xml input
+
+class(xmlObject)
+```
+
+
+```{r}
+root <- xmlRoot(xmlObject)
+```
+
+```{r}
+xmlSize(root)
+```
+
+```{r}
+infantmortality <- getNodeSet(root, '//field[@name="Infant mortality rate"]')
+
+inf_ranks <- getNodeSet(root, '//field[@name="Infant mortality rate"]/rank')
+```
+
+```{r}
+rates <- sapply(inf_ranks, function(x) xmlGetAttr(x, "number"))
+c_codes_im <- sapply(inf_ranks, function(x) xmlGetAttr(x, "country"))
+
+rates<- lapply(rates, as.numeric)
+
+mortality_data <- data.frame(rates = unlist(rates), c_codes = unlist(c_codes_im))
+```
+
+
+```{r}
+pop_ranks <- getNodeSet(root, '//field[@name="Population"]/rank')
+
+pops <- sapply(pop_ranks, function(x) xmlGetAttr(x, "number"))
+c_codes_pop <- sapply(pop_ranks, function(x) xmlGetAttr(x, "country"))
+
+pops<- lapply(pops, as.numeric)
+
+population_data <- data.frame(pops = unlist(pops), c_codes = unlist(c_codes_pop))
+```
+
+
+```{r}
+iso_code_rows<- getNodeSet(root, '//appendix[@name="cross-reference list of country data codes"]/table/row')
+
+iso_codes <- sapply(iso_code_rows, xmlValue)
+
+```
+
+
+```{r}
+CIA_names <- lapply(iso_code_rows, function(x) xmlGetAttr(xmlChildren(x)[[1]], "country"))
+countrynames  <- lapply(iso_code_rows, function(x) xmlGetAttr(xmlChildren(x)[[1]], "content"))
+isos <- lapply(iso_code_rows, function(x) xmlGetAttr(xmlChildren(x)[[3]], "content"))
+
+countrynames <- unlist(countrynames)
+CIA_names <- unlist(CIA_names)
+isos <- unlist(isos)
+
+countryCodes <- data.frame(country = countrynames, cia = CIA_names, iso3166 = isos)
+```
+
+
+Deliverable #1: 
+
+```{r}
+sum(countryCodes$iso3166 == "-")
+```
+
+```{r}
+nrow(subset(countryCodes, iso3166 == "-" & cia =="-"))
+```
+
+
+1. 28 countries in the CIA Factbook don't have a ISO 3166 code.
+2. 6 of these don’t have a CIA Factbook 2-letter country abbreviation, either. 
+
+
+
+Deliverable #2:
+
+```{r}
+hist(mortality_data$rates, main = "Distribution of Infant Mortality Rates", xlab = "Rates")
+```
+
+The countries with the 10 largest infant mortality rates are Afghanistan, Mali, Somalia, Central African Republic, Guinea-Bissau, Chad, Niger, Angola, Burkina Faso and Nigeria. From looking at this, it appears that the countries in the continent of Africa have a relatively high infant mortality rate relative to other countries. 
+
+
+Lecture #3 : 
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+geolocation <- read.csv("world_country_and_usa_states_latitude_and_longitude_values.csv")
+```
+
+```{r}
+latlong <- geolocation[ , 1:3]
+```
+
+```{r}
+class(latlong$latitude)
+class(latlong$longitude)
+```
+
+```{r}
+head(latlong)
+```
+
+```{r}
+names(latlong)[1] <- 'iso3166'
+```
+
+
+Deliverable #3:
+Describe your process of finding and cleaning this data:
+
+Where did you get the data from?
+
+https://www.kaggle.com/datasets/paultimothymooney/latitude-and-longitude-for-every-country-and-state?datasetId=552239 
+
+I got the data by downloading a csv from Kaggle that has latitude and longitude for every country and state in the U.S. The original source of the data was public data on Google Developers that was released under a Creative Commons 4.0 license.
+
+Where there any issues with the data set?
+There were no issues with the data set. All of the variables were in the correct form when I downloaded it. 
+
+What cleaning or processing did you do?
+I changed the name of the column with the ISO-3166 code from "country code" to 'iso3166'. Otherwise, all the variables were of the correct type. 
+
+
+```{r}
+countryCodes %>% full_join(latlong,
+  by = 'iso3166', 
+  keep = TRUE
+)
+```
+
+```{r}
+join_1 <- countryCodes %>% full_join(latlong,
+  by = 'iso3166'
+)
+```
+
+```{r}
+join_2 <- join_1 %>% full_join(population_data,
+  by = c("cia" = "c_codes")
+)
+
+join_2
+```
+
+```{r}
+join_3 <- join_2 %>% full_join( mortality_data,
+  by = c("cia" = "c_codes")
+)
+
+names(join_3)[6] <- 'population'
+names(join_3)[7] <- 'mortality'
+
+
+```
+
+```{r}
+join_3 <- join_3[, c(1, 3, 2, 6, 7, 4, 5)]
+```
+
+```{r}
+join_3
+```
+
+
+```{r}
+countryData <- join_3 %>% drop_na(population, mortality, country, latitude, longitude)
+```
+
+**Deliverable 4**
+
+I joined the data tables one a time. I began with a full join of the countryCodes table with latLong table by their iso3166 codes. I then joined this table with the mortality and population tables by the cia country code. 
+
+I decided to use full joins to keep all the rows of all the tables I was merging, and then proceeded to drop rows that has missing data for population and mortality since there are the two columns we needed to answer the questions at hand. I also decided to drop rows that did not have a country name, because I do not feel equipped to guess the country names that correspond to specific cia codes. 
+
+
+
+Find the mean mortality rate for all countries with population less than 10 million, and for those countries with population greater than 50 million.
+```{r}
+smallcountries <- subset(countryData , population < 10000000)
+  
+largecountries <-  subset(countryData , population > 50000000)
+```
+
+
+```{r}
+mean(smallcountries$mortality)
+
+```
+
+```{r}
+mean(largecountries$mortality)
+```
+
+**Deliverable 5**
+
+The mean mortality rate for all countries with population less than 10 million is about 18.863%. 
+The mean mortality rate for all countries with population more than 50 million is about 26.051%. 
+
+
+
+
+Lecture #4 : 
+
+```{r}
+library(maps)
+```
+
+```{r}
+cut(1:5, breaks = 2)
+```
+
+```{r}
+cut(1:5, breaks = 3, labels = c('low', 'medium', 'high'))
+```
+
+```{r}
+cut(1:10, breaks = c(0,2.5,8.5,10), labels = c('low', 'medium', 'high') )
+```
+
+```{r}
+cut(1:10, breaks = c(0,2.5,8.5,10))
+```
+
+```{r}
+cut(1:10, breaks = c(1,10))
+```
+
+
+```{r}
+cut(countryData$mortality, breaks = 5)
+```
+```{r}
+quantile(countryData$mortality)
+```
+
+```{r}
+cut(countryData$mortality, breaks = c(1.8, 6.195,14.165, 38.745, 117.230), labels = c("Q1", "Q2", "Q3", "Q4"))
+```
+
+
+```{r}
+quantile(countryData$mortality, probs = c(.5,.9, .99))
+```
+
+
+```{r}
+library(RColorBrewer)
+```
+
+
+```{r}
+plot(1:20, 1:20, pch = 1:20)
+```
+
+```{r}
+plot(1:20, 1:20, pch = 19, col = 1:20)
+```
+
+
+```{r}
+library(RColorBrewer)
+library(maps )
+```
+
+
+```{r}
+#all colors in r represented by hex codes 
+n = 4
+col <- brewer.pal(n, "YlGn")
+```
+
+```{r}
+plot(1:n, 1:n, col = col, pch = 19)
+```
+
+#extension: time lapse 
+
+```{r}
+library(maps)
+map("world", fill = TRUE, col = "grey")
+```
+
+```{r}
+map.cities(x = world.cities, country = "France", minpop = 0,
+maxpop = Inf,  cex = par("cex"), pch = 1)
+```
+
+```{r}
+map("france", fill = TRUE, col = "white")
+map.cities(x = world.cities, country = "France", minpop = 0,
+maxpop = Inf,  cex = par("cex"), pch = 1)
+```
+
+Area is proportional to population 
+
+**Deliverable 6**
+
+Discretized mortality rates 
+
+```{r}
+quantile(countryData$mortality, probs = c(0,.25, .5, .75, .95, .99, 1))
+```
+
+
+```{r}
+dm <- cut(countryData$mortality, breaks = c(1.8,   6.1950,  14.1650,  38.7450,  73.1135,  98.6112, 117.2300), labels = c("25", "50", "75", "95", "99", "100"))
+```
+
+
+```{r}
+table(dm)
+```
+
+
+```{r}
+countryData$mortality_factor <- dm
+```
+
+
+```{r}
+for (i in nrow(countryData) ) {
+  
+  if (as.numeric(countryData$mortality_factor[i]) == 1) {
+    countryData$color[i] = col[1]
+  } else if (as.numeric(countryData$mortality_factor[i]) == 2) {
+    countryData$color[i] = col[2]
+  } else if (as.numeric(countryData$mortality_factor[i]) == 3) {
+    countryData$color[i] = col[3]
+  } else if (as.numeric(countryData$mortality_factor[i]) == 4) {
+    countryData$color[i]= col[4]
+  } else if (as.numeric(countryData$mortality_factor[i]) == 5) {
+    countryData$color[i] = col[5]
+  } else {
+    countryData$color[i] = col[6]
+  }
+  
+}
+```
+
+
+```{r}
+countryData <- countryData %>% 
+  mutate(color = case_when(
+    mortality_factor == 100 ~ col[1],
+    mortality_factor == 99 ~ col[2],
+    mortality_factor ==  95 ~ col[3],
+    mortality_factor ==  75 ~ col[4],
+    mortality_factor ==  50 ~ col[5],
+    mortality_factor ==  25 ~ col[6],
+    TRUE ~ "ERROR"
+  ))
+```
+
+
+
+
+***Deliverable 7***
+
+```{r}
+n = 6
+col <- brewer.pal(n, "PRGn")
+```
+
+
+```{r}
+map("world", fill = TRUE, col = "white")
+symbols(countryData$longitude, countryData$latitude, circles = c(rep(1.25, 222)), add = TRUE, inches = FALSE, fg = countryData$color, bg = countryData$color)
+```
+
+**Deliverable 8**
+
+```{r}
+testvec <- (sqrt(countryData$population)) 
+
+for (i in length(testvec)) {
+  if (testvec[i]*.00025 < 1 ) {
+    testvec[i] <= 1/.00025
+}
+}
+```
+
+```{r}
+map("world", fill = TRUE, col = "white")
+symbols(countryData$longitude, countryData$latitude, circles = testvec*.00025, add = TRUE, inches = FALSE, fg = countryData$color, bg = countryData$color)
+```
+-
+
+
+**Lecture**
+
+K means clustering - we are not using an r package 
+
+the # of groups  in which to classify the data is prespecified ... k 
+
+n observations - different countries with several different features 
+ country            f1             f2               f3
+USA
+Japan
+Afghanistan 
+
+n observations, each feature vector will be a length of n 
+
+We are going to assume 2 features 
+
+kmeans will acceot two inputs: number of groups to partition into and partition matrix - an n x p matrix repeated algorithm pitting these points into groups, clustering them and finding the avergae of those and reclusterig
+
+all about group centroids, which is the mean of the features within each group 
+
+You need to start with certain group centroids, can do random initial assignment or choosing random centroids - sample randomly 1:n without replacement 
+Choose 3 points and define them as initial group centroids 
+
+Two Steps: 
+1. Recluster all points putting them into the group with the nearest centroid 
+2. Recalculate all group centroids, based on the new grouping (current clustering)
+
+eg. 
+-choose centroids 
+-using euclidian distance, put points into cluster they are closest to 
+
+
+-if you connect centroids and draw out lines from perpendicular bisectors, it partitions the points into regions 
+
+
+-with new grouping, recalculate centroid of each cluster to find new centroids and repeat two steps 
+-retain centroids and recluster all points based on which centroids they are closest to 
+
+repeat until nothing changes - once all classifications stay the same, you quit 
+
+(can be done in 10-15 lines of code with vectorizes operations )
+
+- distance between is going to be difference in first one squared + difference in second one squared etc.. standard notion of euclidian distance in a general sense 
+
+while loop
+number k 
+design matrix (n x p)
+length n vector (groupings) - vector of length n continaing numbers 1:k
+maintain group centroids - c - k x p matrix where if there is k centroids and p features this will give corrdinates in p space containing p space - need to keep it dynamics 
+variable - to keep track of if anything changes 
+
+no guarentee that they will result in same clusters but it always converges 
+
+choose centroids randomly initially 
+
+both are matrices - more efficient 
+matrices are necessarily all the same data type 
+
+take each of features and standardize them 
+
+return grouping vector at the end 
+
+```{r}
+x <- 1:10 
+(x - mean(x)) / sd(x)
+```
+
+```{r}
+as.numeric(scale(x))
+```
+
+finding difference between point and centroid 
+
+x[i]
+centroid[j]
+
+
+
+sum ((x[i, ] - centroid[j, ] )^2) - should technically sqrt but you don't necesarilly need to 
+if centroids are a k x p matrix 
+
+could do for loops over observation i and j 
+
+p rows 
+
+#include it in appendix of report 
+#DON"T DO A LOT OF FOR LOOPS - vectorize operations 
+
+```{r}
+Z = matrix(1:25, 5, 5)
+```
+
+```{r}
+DM <- matrix( c(countryData$mortality, countryData$latitude, countryData$longitude),ncol = 3)
+```
+
+
+
+
+
+```{r}
+kmeans <- function(k = 3, DM) {
+  changing = 1 
+  c = matrix()
+  n = nrow(DM) #5
+  p = ncol(DM) #5 
+  
+  #standardizing features 
+  for (i in 1:p) {
+    DM[ ,p] <- as.numeric(scale(DM[ ,p]))
+  }
+  
+  rows <- sample(1:n, k)
+  
+  #initialize centroids 
+  centroids <- DM[rows, ]
+  newcentroids <- DM[rows, ]
+  
+  #create a length-n vector data structure to hold groupings
+  X <- vector(mode="numeric", length=n)
+  
+  results = c()
+
+  while (changing) {
+    
+    #reclassify all points 
+    for (i in 1:n) {
+      for (j in 1:k) {
+        results[j] <- sum ((DM[i,] - centroids[j, ] )^2)
+      }
+      X[i] <- which.min(results)
+    }
+    
+    #recalculate all centroids 
+    for (i in 1:k) {
+      if (length(which(X == i)) == 1 ) {
+        newcentroids[i, ] <- DM[which(X == i), ]
+      }else {
+        newcentroids[i, ] <- colMeans(DM[which(X == i), ])
+      }
+    }
+    
+    if (identical(newcentroids, centroids ) ){
+      changing = 0 
+    } else {
+      centroids <- newcentroids 
+    }
+    
+  }
+  
+  return(X)
+}
+```
+
+```{r}
+countryData$cluster <- kmeans(4, DM)
+
+countryData <- countryData %>% 
+  mutate(clusterColor = case_when(
+    cluster  == 1 ~ col[1],
+    cluster  == 2 ~ col[2],
+    cluster  ==  3 ~ col[3],
+    cluster  ==  4 ~ col[4],
+    TRUE ~ "ERROR"
+  ))
+
+map("world", fill = TRUE, col = "white")
+symbols(countryData$longitude, countryData$latitude, circles = c(rep(1.5, 220)), add = TRUE, inches = FALSE, fg = countryData$clusterColor, bg = countryData$clusterColor)
+```
+
+```{r}
+regionalMap <- function(k) {
+ 
+  #Create a map displaying population-sized mortality-colored circles for each country.
+  map("world", fill = TRUE, col = "white")
+
+  
+  #Perform k-means classification of the countries using the standardized latitude, longitude, and infant mortality variables
+  countryData$clust <- kmeans(k, DM)
+  
+  colors = rainbow(k, alpha = .2)
+  
+  for (i in 1:k) {
+    sub <- subset(countryData, clust == i)
+    x <- sub$longitude
+    y <- sub$latitude 
+    ind <- chull(x, y)
+    hull_x <- x[ind]
+    hull_y <- y[ind]
+    polygon(hull_x, hull_y, col = colors[i])
+  }
+}
+```
+
+```{r}
+regionalMap(4)
+```
+```{r}
+regionalMap(3)
+regionalMap(4)
+```
+
+```{r}
+regionalMap(10)
+```
+
+
+```{r}
+library(grDevices)
+
+## Normal(0, 1) random variables for x- and y- coordinates
+n <- 20
+x <- rnorm(n)
+y <- rnorm(n)
+
+## indices of points forming the convex hull
+ind <- chull(x, y)
+
+## the x- and y-coordinates of points forming the convex hull
+hull_x <- x[ind]
+hull_y <- y[ind]
+```
+
+
+
+```{r}
+healthExpNodes <- getNodeSet(root, '//field[@name="Health expenditures"]/rank')
+healthExp_rate <- sapply(healthExpNodes, function(x) xmlGetAttr(x, "number"))
+healthExp_country<- sapply(healthExpNodes, function(x) xmlGetAttr(x, "country"))
+
+healthexp_df <- data.frame(healthExp = as.numeric(healthExp_rate), country = healthExp_country)
+
+healthexp_join_1 <- healthexp_join_1 %>% drop_na( rates, healthExp)
+
+cor(healthexp_join_1$healthExp , healthexp_join_1$rates, method = "pearson")
+```
+
+
+ggmap has more options for continent, cities, etc.. 
+
+Extension Ideas : 
+
+-find another demographic of interest 
+-Time lapse gif of mortality data in last decade 
+-infant mortality vs water quality data 
+-different clustering algorithm (write the code for it )
+
+
