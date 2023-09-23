@@ -1,0 +1,635 @@
+---
+title: "Global Demographics"
+author: "Isabel Arvelo"
+date: '2022-04-29'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+In this project, I extracted and analyzed global demographic data to explore global trends in population, mortality, infant mortality, GDP, and language. The data for this project came from the 2014 CIA Factbook, a data source that contains basic intelligence for 279 world entities. Although the factbook is released on an annual basis, I chose to use the 2014 version because it is accessible in XML format online, allowing for easy querying and manipulation. I also retreieved geospatial data from Google Developers in order to visually represent the data on a world map. I began with an exploratory data analysis to gain a better understanding of the type of data in the factbook. 
+
+```{r, include=FALSE}
+library("tidyverse")
+library(knitr)
+library("XML")
+library(RColorBrewer)
+library(ggplot2)
+library(maps )
+library("wordcloud")
+library(stringr)
+library(qcc)
+library(grid)
+library(gridExtra)
+
+xmlObject <- xmlParse("factbook.xml")    ## character string xml input
+
+root <- xmlRoot(xmlObject)
+```
+
+```{r, include=FALSE}
+kmeans <- function(k = 3, DM) {
+  changing = 1 
+  c = matrix()
+  n = nrow(DM) #5
+  p = ncol(DM) #5 
+  
+  #standardizing features 
+  for (i in 1:p) {
+    DM[ ,p] <- as.numeric(scale(DM[ ,p]))
+  }
+  
+  rows <- sample(1:n, k)
+  
+  #initialize centroids 
+  centroids <- DM[rows, ]
+  newcentroids <- DM[rows, ]
+  
+  #create a length-n vector data structure to hold groupings
+  X <- vector(mode="numeric", length=n)
+
+  while (changing) {
+    
+    #reclassify all points 
+    for (i in 1:n) {
+      results = c()
+      for (j in 1:k) {
+        results[j] <- sum ((DM[i,] - centroids[j, ] )^2)
+      }
+      X[i] <- which.min(results)
+    }
+    
+    #recalculate all centroids 
+    for (i in 1:k) {
+      if (length(which(X == i)) == 1 ) {
+        newcentroids[i, ] <- DM[which(X == i), ]
+      }else {
+        newcentroids[i, ] <- colMeans(DM[which(X == i), ])
+      }
+    }
+    
+    if (identical(newcentroids, centroids ) ){
+      changing = 0 
+    } else {
+      centroids <- newcentroids 
+    }
+    
+  }
+  
+  return(X)
+}
+```
+
+
+```{r, include = FALSE}
+infantmortality <- getNodeSet(root, '//field[@name="Infant mortality rate"]')
+
+inf_ranks <- getNodeSet(root, '//field[@name="Infant mortality rate"]/rank')
+
+rates <- sapply(inf_ranks, function(x) xmlGetAttr(x, "number"))
+c_codes_im <- sapply(inf_ranks, function(x) xmlGetAttr(x, "country"))
+
+rates<- lapply(rates, as.numeric)
+
+mortality_data <- data.frame(rates = unlist(rates), c_codes = unlist(c_codes_im))
+
+pop_ranks <- getNodeSet(root, '//field[@name="Population"]/rank')
+
+pops <- sapply(pop_ranks, function(x) xmlGetAttr(x, "number"))
+c_codes_pop <- sapply(pop_ranks, function(x) xmlGetAttr(x, "country"))
+
+pops<- lapply(pops, as.numeric)
+
+population_data <- data.frame(pops = unlist(pops), c_codes = unlist(c_codes_pop))
+
+iso_code_rows<- getNodeSet(root, '//appendix[@name="cross-reference list of country data codes"]/table/row')
+
+iso_codes <- sapply(iso_code_rows, xmlValue)
+
+CIA_names <- lapply(iso_code_rows, function(x) xmlGetAttr(xmlChildren(x)[[1]], "country"))
+countrynames  <- lapply(iso_code_rows, function(x) xmlGetAttr(xmlChildren(x)[[1]], "content"))
+isos <- lapply(iso_code_rows, function(x) xmlGetAttr(xmlChildren(x)[[3]], "content"))
+
+countrynames <- unlist(countrynames)
+CIA_names <- unlist(CIA_names)
+isos <- unlist(isos)
+
+countryCodes <- data.frame(country = countrynames, cia = CIA_names, iso3166 = isos)
+```
+
+**Deliverable #1:** 
+```{r, include = FALSE}
+sum(countryCodes$iso3166 == "-")
+
+nrow(subset(countryCodes, iso3166 == "-" & cia =="-"))
+```
+1. ISO 3166 codes are part of an internationally recognized codes of letters and/or numbers that are used to refer to countries and their subdivisions in a standardized fashion. Of the 219 countries in the CIA Factbook, 28 don't have an ISO 3166 code. 
+
+2. The factbook also uses it own coding system and alots each country a 2-letter abbrevation of its name. 6 of the countries do not an ISO 3166 code or a CIA Factbook 2-letter country abbreviation.  
+
+**Deliverable #2:**
+
+```{r, echo = FALSE, fig.height=3}
+p <- ggplot(mortality_data, aes(x=rates)) + 
+  geom_histogram(colour="black", fill="white", binwidth = 1)
+plot1 <- p+ geom_vline(aes(xintercept=mean(rates)),
+            color="blue", linetype="dashed", size=1) + xlab("Rate")
+plot2 <- ggplot(mortality_data, aes(x=rates)) + 
+ geom_histogram(aes(y=..density..), colour="black", fill="white", binwidth = 1)+
+ geom_density(alpha=.2, fill="#FF6666")  + xlab("Rate")
+
+grid.arrange(plot1, plot2, ncol=2, top = "Distribution of Infant Mortality Rates (deaths per 1,000 live births)")
+```
+
+The distribution of infant mortality rates is heavily skewed right, indicating that the vast majority of countries have relatively low infant mortality rates, below 30 deaths per 1,000 live births. Fewer countries experience higher rates of infant mortality The median of the distribution is about 14 deaths per 1,000 live births and about 75% of countries remain below 40 deaths per 1,000 live births. However,
+the countries with high infant mortality rates, tend to have very high rates. There are several outliers and the maximum of the distribution is more than 8 times the median. The 6 countries with the highest infant mortality experience more than 90 deaths per 1,000 live births.
+
+
+```{r, include = FALSE}
+top10 <- head(mortality_data, 10)
+top10  %>% left_join(countryCodes,
+  by = c("c_codes" = "cia" )
+)
+```
+
+In order, the countries with the 10 largest infant mortality rates are Afghanistan, Mali, Somalia, Central African Republic, Guinea-Bissau, Chad, Niger, Angola, Burkina Faso and Nigeria.  9/10 of these countries are on the continent of Africa and the other country is Afghanistan,  a region that has experienced extreme political turmoil and several wars in the last two decades. From looking at this, it appears that underdeveloped countries, defined by the United Nations to have "widespread chronic poverty and less economic development", tend to have higher infant mortality rates. 5 of the countries with the highest infant mortality are also in the top 10 for the UN's list of least developed countries. 
+
+
+```{r, include = FALSE}
+geolocation <- read.csv("world_country_and_usa_states_latitude_and_longitude_values.csv")
+
+latlong <- geolocation[ , 1:3]
+
+names(latlong)[1] <- 'iso3166'
+```
+
+
+**Deliverable #3 and #4:**
+
+The next step in the project was to locate geolocation data for countries online and prepare the data to be merged with the demographic data from the CIA factbook. I got my data by downloading a csv from Kaggle that has latitude and longitude for every country and state in the U.S and then reading the csv into R. The original source of the data was public data on Google Developers that was released under a Creative Commons 4.0 license.There were no issues with the data set. All of the variables were in the correct form when I downloaded it. I eliminated the columns with USA state data and changed the name of the column with the ISO-3166 code from "country code" to 'iso3166'. Otherwise, all the variables were of the correct type. I then created a dataframe named latlong that contained the latitude and longtitude corresponding to each iso3166 code. 
+
+After storing the geolocation data in a data frame, I proceeded to create a single merged data frame with the the country name, the ISO 3166 country code, the 2-letter country abbreviation used in the CIA Factbook, population, mortality, latitude, and longitude. In order to do this, I did a series of full joins to keep all the rows from all of the tables and then eliminated the rows/data I did not want.
+
+I began by joining the countryCodes data table(containing country name, cia, and iso3166) with the latlong table using the ISO 3166 country code as the key to join them. I then performed a full join to merge this table with the population data frame, using the 2-letter CIA codes as the key. At this point, I had a table with all of the information on country name, the ISO 3166 country code, the 2-letter country abbreviation used in the CIA Factbook, population, latitude, and longitude. The last join I performed was a full join of this large dataframe with the mortality data, using CIA country code as the key, which resulted in a data frame with 285 rows. However, since there is different data available for different countries, I had NA values dispersed throughout each variable, resulting from joins in which a country had data for one variable, but not another.
+
+To be specific, this data frame had 4 rows with NA values for the country variable, 3 rows with NA values for the iso3166 variable, 45 rows with NA values for the cia code variable, 61 rows with NA values for the mortality variable, and 40 rows with NA values for the geolocation variables. The first analysis and visualization I wanted to complete required mortality, population, latitude, longitude data for each country so I created a data set that dropped all rows that had missing values for any of these variables. 
+
+However, I also wanted to use a k-means clustering algorithm based on geolocation and mortality data, so for this analysis it would not matter if there was population data for a given country. Therefore, I created a second data set that only dropped rows missing values for mortality, latitude, or longitude. However, I discovered that rows missing country data coincided with the rows missing the data for the other variables so this second data set was identical to the first. I procedded forward with a single data set that had all values populated for country name, the ISO 3166 country code, the 2-letter country abbreviation used in the CIA Factbook, population, mortality, latitude, and longitude.
+
+
+```{r, include = FALSE}
+join_1 <- countryCodes %>% full_join(latlong,
+  by = 'iso3166'
+)
+
+join_2 <- join_1 %>% full_join(population_data,
+  by = c("cia" = "c_codes")
+)
+
+join_3 <- join_2 %>% full_join( mortality_data,
+  by = c("cia" = "c_codes")
+)
+
+names(join_3)[6] <- 'population'
+names(join_3)[7] <- 'mortality'
+
+join_3 <- join_3[, c(1, 3, 2, 6, 7, 4, 5)]
+
+sum(is.na(join_3$country))
+sum(is.na(join_3$iso3166))
+sum(is.na(join_3$cia))
+sum(is.na(join_3$population))
+sum(is.na(join_3$mortality))
+sum(is.na(join_3$latitude))
+sum(is.na(join_3$longitude))
+```
+
+```{r, include = FALSE}
+countryData <- join_3 %>% drop_na(population, mortality, latitude, longitude)
+countryData_2 <- join_3 %>% drop_na( mortality, latitude, longitude)
+```
+
+
+
+**Deliverable #5**
+
+```{r, include = FALSE}
+smallcountries <- subset(countryData , population < 10000000)
+  
+largecountries <-  subset(countryData , population > 50000000)
+
+mean(smallcountries$mortality)
+
+mean(largecountries$mortality)
+```
+
+The mean mortality rate for all countries with population less than 10 million is 18.863 per 1,000 live births. 
+The mean mortality rate for all countries with population more than 50 million is about 26.051 deaths per 1,000 live births. . 
+
+
+
+
+**Deliverable #6**
+
+Next, I wanted to create a world map showing the infant mortality rate for each country with colored circles, where the color of the circle for each country indicates the approximate mortality rate. In order to do this, I first had to discretize the mortality rates. 
+
+```{r, include = FALSE}
+quantile(countryData$mortality, probs = c(0,.25, .5, .75, .95, .99, 1))
+
+Factors <- cut(countryData$mortality, breaks = c(1.8,   6.1850 ,  13.9850 ,  38.5425,  73.1570,  98.7568, 117.2300), labels = c("25", "50", "75", "95", "99", "100"))
+```
+
+```{r, echo = FALSE}
+kable(table(Factors))
+```
+
+I used the quantiles as basis to create a better distribution of the data points across the different levels of the factor. However, I also made the top 5% and top 1% of rates their own factors, because the the countries with such high infant mortality rates merit explicit attention. 
+
+
+```{r, include = FALSE}
+countryData$mortality_factor <- Factors
+
+col <- brewer.pal(9, "Spectral")
+
+countryData <- countryData %>% 
+  mutate(color = case_when(
+    mortality_factor == 100 ~ col[9],
+    mortality_factor == 99 ~ col[8],
+    mortality_factor ==  95 ~ col[7],
+    mortality_factor ==  75 ~ col[6],
+    mortality_factor ==  50 ~ col[5],
+    mortality_factor ==  25 ~ col[4],
+    TRUE ~ "ERROR"
+  ))
+```
+
+**Deliverable #7**
+
+```{r, echo = FALSE, fig.height=4, fig.width=5.6}
+map("world", fill = TRUE, col = "grey90", bg = "white")
+symbols(countryData$longitude, countryData$latitude, circles = c(rep(1.25, 220)), add = TRUE, inches = FALSE, fg = countryData$color, bg = countryData$color)
+legend("bottomleft", c("0-1.8", "1.8 - 6.19", "6.19 - 13.99", "13.99 - 73.16", "73.16 - 98.76", "98.76-117.23"), fill = col[4:9], cex = 0.7)
+title("Infant Mortality (deaths/1,000 live births)")
+```
+\newpage
+**Deliverable #8**
+
+```{r, echo =FALSE, fig.height=4, fig.width=5.6}
+testvec <- (sqrt(countryData$population)) 
+
+for (i in length(testvec)) {
+  if (testvec[i]*.00025 < 1 ) {
+    testvec[i] <= 1/.00025
+}
+}
+
+map("world", fill = TRUE, col = "grey90", bg = "white")
+symbols(countryData$longitude, countryData$latitude, circles = testvec*.00025, add = TRUE, inches = FALSE, fg = countryData$color, bg = countryData$color)
+legend("bottomleft", c("0-1.8", "1.8 - 6.19", "6.19 - 13.99", "13.99 - 73.16", "73.16 - 98.76", "98.76-117.23"), fill = col[4:9], cex = 0.7)
+title("Infant Mortality (deaths/1,000 live births)")
+text(140,-80, substitute(paste(italic('Circle size based on population'))), cex = 0.7)
+
+```
+
+**Deliverable #9**
+Next, I implemented an unsupervised learning algorithm, specifically a k-means clustering algorithm, to classify the countries based on latitude, longitude, and infant mortality. My aim was to partition the observations into k clusters of similar observations with respect to the selected variables. 
+```{r, echo=FALSE, fig.height=3.8, fig.width=5.6}
+DM <- matrix( c(countryData$mortality, countryData$latitude, countryData$longitude),ncol = 3)
+
+countryData$cluster <- kmeans(4, DM)
+
+clustercol = rainbow(8)
+
+countryData <- countryData %>% 
+  mutate(clusterColor = case_when(
+    cluster  == 1 ~ clustercol[2],
+    cluster  == 2 ~ clustercol[4],
+    cluster  ==  3 ~ clustercol[6],
+    cluster  ==  4 ~ clustercol[8],
+    TRUE ~ "ERROR"
+  ))
+
+map("world", fill = TRUE, col = "grey90", bg = "white")
+symbols(countryData$longitude, countryData$latitude, circles = c(rep(1.5, 220)), add = TRUE, inches = FALSE, fg = countryData$clusterColor, bg = countryData$clusterColor)
+
+legend("bottomleft", c("Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4"), fill = c(clustercol[2], clustercol[4], clustercol[6], clustercol[8] ),  cex = 0.7)
+title("k-means group classification (k=4)")
+#text(140,-80, substitute(paste(italic('Circle size based on population'))), cex = 0.7)
+```
+\newpage 
+**Deliverable #10**
+
+The last step was to implement an alternate display of the classification groupings on a world map. In this visualization, a convex hull is drawn around each cluster. 
+
+```{r, include = FALSE}
+regionalMap <- function(k) {
+ 
+  #Create a map displaying population-sized mortality-colored circles for each country.
+  map("world", fill = TRUE, col = "white")
+  title(paste("k =", k, ""))
+
+  
+  #Perform k-means classification of the countries using the standardized latitude, longitude, and infant mortality variables
+  countryData$clust <- kmeans(k, DM)
+  
+  colors = rainbow(k, alpha = .2)
+  
+  for (i in 1:k) {
+    sub <- subset(countryData, clust == i)
+    x <- sub$longitude
+    y <- sub$latitude 
+    ind <- chull(x, y)
+    hull_x <- x[ind]
+    hull_y <- y[ind]
+    polygon(hull_x, hull_y, col = colors[i])
+  }
+}
+```
+
+```{r, fig.height= 8, fig.width = 12, echo = FALSE}
+par(mfrow = c(2, 2))
+
+regionalMap(2)
+regionalMap(4)
+regionalMap(8)
+regionalMap(12)
+```
+
+
+
+**Extensions**
+
+According to Enyclopedia Brittanica, westernization is "the adoption of the practices and culture of western Europe by societies and countries in other parts of the world, whether through compulsion or influence". This phenomenon is a consequence of the process of colonialism and can be observed through a linguistic lens. Individuals that speak English are able to travel the world with relative ease because of its widespread adoption across the globe.
+
+While other factors like America's success in WW2 and it's status as technological superpower, propogate the popularity of the language, I was curious in further exploring the linguistic legacy of colonialism by examining the dispersion of languages spoken by colonial superpowers like England (English), France (French), Germany (German), Portugal (Portuguese), and Spain (Spanish). 
+
+I extracted data from the CIA World Factbook, and found the number of countries that have each of these languages as an official language of the country.
+
+```{r, include=FALSE}
+languageNodes <- getNodeSet(root, '//field[@ref="f2098"]')
+languages <- lapply(languageNodes, function(x) xmlValue(x[[1]]))
+
+e <- sum(lapply(languages, function(x) grepl("English (official", x, fixed = TRUE)) == TRUE)
+f <- sum(lapply(languages, function(x) grepl("French (official", x, fixed = TRUE)) == TRUE)
+s <- sum(lapply(languages, function(x) grepl("Spanish (official", x, fixed = TRUE)) == TRUE)
+p <- sum(lapply(languages, function(x) grepl("Portuguese (official", x, fixed = TRUE)) == TRUE)
+g <- sum(lapply(languages, function(x) grepl("German (official", x, fixed = TRUE)) == TRUE)
+```
+
+```{r, echo = FALSE}
+data <- data.frame(Language  = c("English" ,  "French", "Spanish", "Portuguese", "German"),
+                   Frequency = c(e,f,s,p,g))
+data   
+```
+
+The table above illustrates that the top 3 "official languages" spoken in countries across the world are english, french, and spanish; languages spoken by three of the most prominent imperial powers. 
+
+```{r, include=FALSE}
+ml <- c("Setswana", "24 major African language groups", "Tigrinya", "English", "Asante", "English", "Sesotho", "English", "Oshiwambo languages", "English", "Kinyarwanda", "Seychellois Creole", "English", "IsiZulu", "English", "Arabic", "English", "Kiswahili or Swahili", "English", "Bembe", "English", "English", "English", "English", "I-Kiribati","English","Niuean","English","Philippine","Palauan", "English","Melanesian pidgin","English and Tongan","Tuvaluan","local languages (more than 100)", "English", "English", "English", "English", "English", "English", "English", "English", "English",
+"English", "English", "English", "English", "Cantonese","Tok Pisin","Filipino","Mandarin","English",
+"Maltese","English","English","Punjabi")
+
+length(ml)
+sum(ml == "English")
+```
+
+Of the 57 countries that have English as an official language, it is only the most commonly spoken language in 31 (54.39%) of those. 
+
+Another aspect of the data I was curious about was which letters are most common in country names. All 26 letters in the English alphabet appear at least once in the English spelling of the country names. However, some are in several hundred country names, while others only appear in a handful. 
+
+```{r, include = FALSE}
+countryletters <- str_flatten(countryCodes$country)
+countryletters  <- gsub("[^a-z]", "", countryletters)
+
+character_array <- unlist(strsplit(countryletters, ""))
+
+letters <- sort(table(character_array), decreasing = TRUE)
+```
+
+
+```{r, echo=FALSE}
+pareto.chart(letters, 
+            xlab = "Letters", 
+            ylab="Frequency", 
+            cumperc = seq(0, 100, by = 10),  
+            ylab2 = "Cumulative Percentage", 
+            main = "Letter Frequency in Country Names" ) 
+```
+
+In order to create a visual representation of which letters are most common, I created a word cloud in which the frequency of the character determines its relative size in the cloud. 
+
+```{r, fig.height=3, fig.width=5, echo = FALSE}
+chars <- as.data.frame(letters)
+set.seed(100)
+wordcloud(words = chars$character_array, freq = chars$Freq, random.order=TRUE, min.freq = 0)
+```
+
+
+\newpage
+Given that the countries with highest infant mortality rates tended to be some of the poorest countries in the world, I also wanted to look further into the relationship between GDP per capita and mortality rate. 
+
+```{r, include = FALSE}
+gdpNodes <- getNodeSet(root, '//field[@name="GDP - per capita (PPP)"]/rank')
+gdp_rate<- sapply(gdpNodes, function(x) xmlGetAttr(x, "number"))
+gdp_country<- sapply(gdpNodes, function(x) xmlGetAttr(x, "country"))
+
+gdp_df <- data.frame(gdpPerCap = as.numeric(gdp_rate), country = gdp_country)
+
+gdp_join_1 <- gdp_df  %>% full_join(mortality_data,
+  by = c("country" = "c_codes")
+)
+
+gdp_join_1 <- gdp_join_1  %>% drop_na( rates, gdpPerCap)
+```
+
+```{r, echo = FALSE}
+plot(gdp_join_1$gdpPerCap, gdp_join_1$rates, ylab = "Mortality Rate", xlab = "GDP per capita")
+```
+
+The relationship between GDP per Capita and mortality rate appears to be negatively exponential. 
+
+```{r, include = FALSE}
+lm1 <- lm((1/gdp_join_1$rates) ~ gdp_join_1$gdpPerCap)
+summary(lm1)
+```
+
+I decided to transform mortality to $\frac{1}{mortality}$ and created a linear model between GDP per capita and $\frac{1}{mortality}$. 
+
+$\widehat{ \frac{1}{mortality} } = .03397 + .000004222(GDP per capita)$
+
+```{r, echo = FALSE}
+plot(gdp_join_1$gdpPerCap, (1/gdp_join_1$rates), ylab = "1/Mortality Rate", xlab = "GDP per capita")
+```
+
+
+Each one 1 dollar increase in GDP per capita is associated with an expected average increase of 4.222e-06 dollars in $\frac{1}{mortality}$. Since the p-value (< 2e-16) is less than .05, we can reject the null hypothesis to conclude that GDP per capita is a statistically significant predictor variable for $\frac{1}{mortality}$. Changes in the GDP per capita are associated with changes in $\frac{1}{mortality}$ at the population level. 
+
+\newpage 
+
+**Appendix**
+
+```{r}
+kmeans <- function(k = 3, DM) {
+  changing = 1 
+  c = matrix()
+  n = nrow(DM) #5
+  p = ncol(DM) #5 
+  
+  #standardizing features 
+  for (i in 1:p) {
+    DM[ ,p] <- as.numeric(scale(DM[ ,p]))
+  }
+  
+  rows <- sample(1:n, k)
+  
+  #initialize centroids 
+  centroids <- DM[rows, ]
+  newcentroids <- DM[rows, ]
+  
+  #create a length-n vector data structure to hold groupings
+  X <- vector(mode="numeric", length=n)
+
+  while (changing) {
+    
+    #reclassify all points 
+    for (i in 1:n) {
+      results = c()
+      for (j in 1:k) {
+        results[j] <- sum ((DM[i,] - centroids[j, ] )^2)
+      }
+      X[i] <- which.min(results)
+    }
+    
+    #recalculate all centroids 
+    for (i in 1:k) {
+      if (length(which(X == i)) == 1 ) {
+        newcentroids[i, ] <- DM[which(X == i), ]
+      }else {
+        newcentroids[i, ] <- colMeans(DM[which(X == i), ])
+      }
+    }
+    
+    if (identical(newcentroids, centroids ) ){
+      changing = 0 
+    } else {
+      centroids <- newcentroids 
+    }
+    
+  }
+  
+  return(X)
+}
+```
+
+```{r}
+regionalMap <- function(k) {
+ 
+  #Create a map displaying population-sized mortality-colored circles for each country.
+  map("world", fill = TRUE, col = "white")
+  title(paste("k =", k, ""))
+
+  
+  #Perform k-means classification of the countries using the standardized latitude, longitude, and infant mortality variables
+  countryData$clust <- kmeans(k, DM)
+  
+  colors = rainbow(k, alpha = .2)
+  
+  for (i in 1:k) {
+    sub <- subset(countryData, clust == i)
+    x <- sub$longitude
+    y <- sub$latitude 
+    ind <- chull(x, y)
+    hull_x <- x[ind]
+    hull_y <- y[ind]
+    polygon(hull_x, hull_y, col = colors[i])
+  }
+}
+```
+
+Extensions Code: 
+
+```{r}
+languageNodes <- getNodeSet(root, '//field[@ref="f2098"]')
+languages <- lapply(languageNodes, function(x) xmlValue(x[[1]]))
+
+e <- sum(lapply(languages, function(x) grepl("English (official", x, fixed = TRUE)) == TRUE)
+f <- sum(lapply(languages, function(x) grepl("French (official", x, fixed = TRUE)) == TRUE)
+s <- sum(lapply(languages, function(x) grepl("Spanish (official", x, fixed = TRUE)) == TRUE)
+p <- sum(lapply(languages, function(x) grepl("Portuguese (official", x, fixed = TRUE)) == TRUE)
+g <- sum(lapply(languages, function(x) grepl("German (official", x, fixed = TRUE)) == TRUE)
+
+data <- data.frame(Language  = c("English" ,  "French", "Spanish", "Portuguese", "German"),
+                   Frequency = c(e,f,s,p,g))
+```
+
+
+```{r}
+ml <- c("Setswana", "24 major African language groups", "Tigrinya", "English", "Asante", "English", "Sesotho", "English", "Oshiwambo languages", "English", "Kinyarwanda", "Seychellois Creole", "English", "IsiZulu", "English", "Arabic", "English", "Kiswahili or Swahili", "English", "Bembe", "English", "English", "English", "English", "I-Kiribati","English","Niuean","English","Philippine","Palauan", "English","Melanesian pidgin","English and Tongan","Tuvaluan","local languages (more than 100)", "English", "English", "English", "English", "English", "English", "English", "English", "English",
+"English", "English", "English", "English", "Cantonese","Tok Pisin","Filipino","Mandarin","English",
+"Maltese","English","English","Punjabi")
+
+length(ml)
+sum(ml == "English")
+```
+
+```{r}
+countryletters <- str_flatten(countryCodes$country)
+countryletters  <- gsub("[^a-z]", "", countryletters)
+
+character_array <- unlist(strsplit(countryletters, ""))
+
+letters <- sort(table(character_array), decreasing = TRUE)
+```
+
+
+```{r}
+#pareto.chart(letters,  xlab = "Letters",  ylab="Frequency",  cumperc = seq(0, 100, by = 10),  ylab2 = "Cumulative Percentage", main = "Letter Frequency in Country Names" ) 
+
+
+
+chars <- as.data.frame(letters)
+set.seed(100)
+#wordcloud(words = chars$character_array, freq = chars$Freq, random.order=TRUE, min.freq = 0)
+```
+
+
+
+```{r,  results='hide'}
+gdpNodes <- getNodeSet(root, '//field[@name="GDP - per capita (PPP)"]/rank')
+gdp_rate<- sapply(gdpNodes, function(x) xmlGetAttr(x, "number"))
+gdp_country<- sapply(gdpNodes, function(x) xmlGetAttr(x, "country"))
+
+gdp_df <- data.frame(gdpPerCap = as.numeric(gdp_rate), country = gdp_country)
+
+gdp_join_1 <- gdp_df  %>% full_join(mortality_data,
+  by = c("country" = "c_codes")
+)
+
+gdp_join_1 <- gdp_join_1  %>% drop_na( rates, gdpPerCap)
+```
+
+```{r}
+lm1 <- lm((1/gdp_join_1$rates) ~ gdp_join_1$gdpPerCap)
+summary(lm1)
+```
+
+
+\newpage
+
+**References**
+
+“Least Developed Countries (Ldcs) .” United Nations, United Nations,
+  https://www.un.org/development/desa/dpad/least-developed-country-category.html. 
+
+“Westernization.” Encyclopedia Britannica, Encyclopedia Britannica, Inc.,
+  https://www.britannica.com/topic/Westernization. 
+
+
+
+
+
+
+
+
+
+
