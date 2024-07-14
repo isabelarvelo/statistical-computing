@@ -10,7 +10,6 @@ This repository contains a collection of data analysis and machine learning proj
 - Analyzed stock price data for Visa and Mastercard from 2010-2020
 - Calculated optimal trading positions and evaluated strategy performance
 - Extended analysis to other stock pairs with varying correlations
-- Conducted Monte Carlo simulations to assess strategy robustness
 
 ### 2. Global Demographics Analysis
 
