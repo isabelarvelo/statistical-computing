@@ -1,6 +1,7 @@
 # Statistical Computing Projects
+> Spring 2022
 
-This repository contains a collection of data analysis and machine learning projects completed as part of various statistical computing courses. Each project demonstrates different aspects of data manipulation, analysis, visualization, and modeling using various tools and programming languages.
+This repository contains a collection of data analysis and machine learning projects completed as part of an undergraduate statistical computing course. Each project demonstrates different aspects of data manipulation, analysis, visualization, and modeling using various tools and programming languages.
 
 ## Projects
 
